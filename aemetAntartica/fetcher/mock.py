@@ -2,13 +2,14 @@
 Mock fetcher for testing and simulations.
 """
 
-from typing import Mapping
-from datetime import datetime
-from .annot import StationMetaData, WeatherPoint
-from .exceptions import StationIdValueError, IniDateValueError, EndDateValueError
-from dataclasses import dataclass
 import operator as op
-from itertools import repeat, compress
+from dataclasses import dataclass
+from datetime import datetime
+from itertools import compress, repeat
+from typing import Mapping, Sequence
+
+from .annot import StationMetaData, WeatherPoint
+from .exceptions import EndDateValueError, IniDateValueError, StationIdValueError
 
 
 class InMemoryStationData(StationMetaData):
@@ -16,7 +17,7 @@ class InMemoryStationData(StationMetaData):
     Inclusion of timeseries information in station data to avoid double dictionary.
     """
 
-    timeseries: list[WeatherPoint]
+    timeseries: Sequence[WeatherPoint]
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,7 @@ class MockWeatherDataFetcher:
         except KeyError as e:
             raise StationIdValueError(f"Station name {station_name} not found") from e
 
-    async def stations(self) -> list[str]:
+    async def stations(self) -> Sequence[str]:
         return list(self.station_data.keys())
 
     async def time_range(self, station_id: str) -> tuple[datetime, datetime]:
@@ -47,7 +48,7 @@ class MockWeatherDataFetcher:
 
     async def timeseries(
         self, date0: datetime, dateF: datetime, station_id: str
-    ) -> list[WeatherPoint]:
+    ) -> Sequence[WeatherPoint]:
         station_metadata = self._get_station_data(station_id)
 
         dMin = station_metadata["date0"]

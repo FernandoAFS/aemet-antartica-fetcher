@@ -2,7 +2,7 @@
 Purely declarative type definitions
 """
 
-from typing import Protocol, TypedDict
+from typing import Protocol, TypedDict, Sequence
 from datetime import datetime
 
 
@@ -22,7 +22,7 @@ class WeatherDataFetcher[T: WeatherPoint](Protocol):
     Return data from external weather API
     """
 
-    async def stations(self) -> list[str]:
+    async def stations(self) -> Sequence[str]:
         """
         List all available stations IDs
         """
@@ -38,7 +38,7 @@ class WeatherDataFetcher[T: WeatherPoint](Protocol):
 
     async def timeseries(
         self, date0: datetime, dateF: datetime, station_id: str
-    ) -> list[T]:
+    ) -> Sequence[T]:
         """
         Request station data to external API.
         """
