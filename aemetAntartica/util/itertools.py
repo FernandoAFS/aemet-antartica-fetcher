@@ -2,7 +2,6 @@
 Extra itertools. Mostly taken from itertools documentation recepies
 """
 
-
 from collections.abc import Iterable, Sequence
 
 

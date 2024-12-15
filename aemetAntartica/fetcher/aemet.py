@@ -55,11 +55,13 @@ class AemetWeatherDataFetcher:
         )
 
     def _params_to_uri(self, date0: datetime, dateF: datetime, station_id: str) -> str:
-        return Template(self.uri_template).substitute({
-            "date0": date0.strftime(self.uri_date_format),
-            "dateF": dateF.strftime(self.uri_date_format),
-            "station_id": station_id,
-        })
+        return Template(self.uri_template).substitute(
+            {
+                "date0": date0.strftime(self.uri_date_format),
+                "dateF": dateF.strftime(self.uri_date_format),
+                "station_id": station_id,
+            }
+        )
 
     async def timeseries(
         self, date0: datetime, dateF: datetime, station_id: str

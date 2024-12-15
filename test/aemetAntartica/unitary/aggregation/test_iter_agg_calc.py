@@ -23,7 +23,9 @@ except ImportError:
 
 np_exception = ImportError("Numpy optional rependency required for this test")
 
+"Arbitrary 'now' date for datetime generation"
 _now = datetime.fromisoformat("2024-12-15")
+
 
 def gen_dt(base: datetime, inc: timedelta):
     "Helper incremental monotonic datetime generator."
@@ -33,15 +35,24 @@ def gen_dt(base: datetime, inc: timedelta):
         i += inc
 
 
-@pytest.mark.parametrize("vals, period", [
-    (list(zip(
-        gen_dt(_now, timedelta(hours=1)),
-        range(50),
-    )),
-    timedelta(hours=5),)
-])
+@pytest.mark.parametrize(
+    "vals, period",
+    [
+        (
+            list(
+                zip(
+                    gen_dt(_now, timedelta(hours=1)),
+                    range(50),
+                )
+            ),
+            timedelta(hours=5),
+        )
+    ],
+)
 def test_first_agg_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
-
+    """
+    Compare 'first' aggregation function with numpy matrix-based implementation
+    """
     if np is None:
         raise np_exception
 
@@ -57,28 +68,39 @@ def test_first_agg_np(vals: Sequence[tuple[datetime, float]], period: timedelta)
 
     dates = list(map(op.itemgetter(0), vals))
     data_freq = calc_points_period(dates)
-    n_samples_period = (period // data_freq)
+    n_samples_period = period // data_freq
     arr = np.array(list(map(op.itemgetter(1), vals)))
-    mat = arr.reshape(len(vals) // n_samples_period, n_samples_period, )
+    mat = arr.reshape(
+        len(vals) // n_samples_period,
+        n_samples_period,
+    )
 
     firsts_np = mat[:, 0]
 
     assert len(firsts_iter) == len(firsts_np)
 
     for i, (iter_, np_) in enumerate(zip(firsts_iter, firsts_np)):
-        assert iter_[1] == np_ , f"Mismatching value in {i} position."
+        assert iter_[1] == np_, f"Mismatching value in {i} position."
 
 
-
-@pytest.mark.parametrize("vals, period", [
-    (list(zip(
-        gen_dt(_now, timedelta(hours=1)),
-        range(50),
-    )),
-    timedelta(hours=5),)
-])
+@pytest.mark.parametrize(
+    "vals, period",
+    [
+        (
+            list(
+                zip(
+                    gen_dt(_now, timedelta(hours=1)),
+                    range(50),
+                )
+            ),
+            timedelta(hours=5),
+        )
+    ],
+)
 def test_last_agg_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
-
+    """
+    Compare 'last' aggregation function with numpy matrix-based implementation
+    """
     if np is None:
         raise np_exception
 
@@ -94,16 +116,19 @@ def test_last_agg_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
 
     dates = list(map(op.itemgetter(0), vals))
     data_freq = calc_points_period(dates)
-    n_samples_period = (period // data_freq)
+    n_samples_period = period // data_freq
     arr = np.array(list(map(op.itemgetter(1), vals)))
-    mat = arr.reshape(len(vals) // n_samples_period, n_samples_period, )
+    mat = arr.reshape(
+        len(vals) // n_samples_period,
+        n_samples_period,
+    )
 
     firsts_np = mat[:, -1]
 
     assert len(firsts_iter) == len(firsts_np)
 
     for i, (iter_, np_) in enumerate(zip(firsts_iter, firsts_np)):
-        assert iter_[1] == np_ , f"Mismatching value in {i} position."
+        assert iter_[1] == np_, f"Mismatching value in {i} position."
 
 
 def do_tup_agg_factory(
@@ -111,20 +136,33 @@ def do_tup_agg_factory(
     calc_f: Callable[[Sequence[float]], float],
     date_picker: Callable[[Sequence[datetime]], datetime],
 ):
+    """
+    Pollyfill meant for functional composition of aggregation functions.
+    """
     return (
         date_picker(list(map(op.itemgetter(0), models))),
         calc_f(list(map(op.itemgetter(1), models))),
     )
 
 
-@pytest.mark.parametrize("vals, period", [
-    (list(zip(
-        gen_dt(_now, timedelta(hours=1)),
-        range(50),
-    )),
-    timedelta(hours=5),)
-])
+@pytest.mark.parametrize(
+    "vals, period",
+    [
+        (
+            list(
+                zip(
+                    gen_dt(_now, timedelta(hours=1)),
+                    range(50),
+                )
+            ),
+            timedelta(hours=5),
+        )
+    ],
+)
 def test_agg_mean_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
+    """
+    Test iterable mean calculation against numpy.
+    """
 
     if np is None:
         raise np_exception
@@ -143,26 +181,38 @@ def test_agg_mean_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
 
     dates = list(map(op.itemgetter(0), vals))
     data_freq = calc_points_period(dates)
-    n_samples_period = (period // data_freq)
+    n_samples_period = period // data_freq
     arr = np.array(list(map(op.itemgetter(1), vals)))
-    mat = arr.reshape(len(vals) // n_samples_period, n_samples_period, )
+    mat = arr.reshape(
+        len(vals) // n_samples_period,
+        n_samples_period,
+    )
     mat_mean = np.nanmean(mat, axis=1)
 
-    assert len(firsts_iter) == len(mat_mean)
+    assert len(firsts_iter) == len(mat_mean), "Results length mismatch"
 
     for i, (iter_, np_) in enumerate(zip(firsts_iter, mat_mean)):
-        assert iter_[1] == np_ , f"Mismatching value in {i} position."
+        assert iter_[1] == np_, f"Mismatching value in {i} position."
 
 
-
-@pytest.mark.parametrize("vals, period", [
-    (list(zip(
-        gen_dt(_now, timedelta(hours=1)),
-        range(50),
-    )),
-    timedelta(hours=5),)
-])
+@pytest.mark.parametrize(
+    "vals, period",
+    [
+        (
+            list(
+                zip(
+                    gen_dt(_now, timedelta(hours=1)),
+                    range(50),
+                )
+            ),
+            timedelta(hours=5),
+        )
+    ],
+)
 def test_agg_median_np(vals: Sequence[tuple[datetime, float]], period: timedelta):
+    """
+    Test iterable median calculation against numpy.
+    """
 
     if np is None:
         raise np_exception
@@ -181,13 +231,15 @@ def test_agg_median_np(vals: Sequence[tuple[datetime, float]], period: timedelta
 
     dates = list(map(op.itemgetter(0), vals))
     data_freq = calc_points_period(dates)
-    n_samples_period = (period // data_freq)
+    n_samples_period = period // data_freq
     arr = np.array(list(map(op.itemgetter(1), vals)))
-    mat = arr.reshape(len(vals) // n_samples_period, n_samples_period, )
-    mat_mean = np.nanmedian(mat, axis=1)
+    mat = arr.reshape(
+        len(vals) // n_samples_period,
+        n_samples_period,
+    )
+    mat_median = np.nanmedian(mat, axis=1)
 
-    assert len(firsts_iter) == len(mat_mean)
+    assert len(firsts_iter) == len(mat_median), "Results length mismatch"
 
-    for i, (iter_, np_) in enumerate(zip(firsts_iter, mat_mean)):
-        assert iter_[1] == np_ , f"Mismatching value in {i} position."
-
+    for i, (iter_, np_) in enumerate(zip(firsts_iter, mat_median)):
+        assert iter_[1] == np_, f"Mismatching value in {i} position."

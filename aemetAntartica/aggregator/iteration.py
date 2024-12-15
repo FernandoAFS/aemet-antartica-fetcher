@@ -124,6 +124,7 @@ last_agg = picker_agg_factory(
     date_getter=op.attrgetter("fhora"),
 )
 
+
 def calc_agg_factory[T](
     agg_f: FloatAgg,
     date_f: DateAgg,

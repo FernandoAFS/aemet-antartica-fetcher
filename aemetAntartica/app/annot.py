@@ -1,12 +1,21 @@
-from typing import Annotated, TypeAlias
-from fastapi import Path, Query
+"""
+Types used for http open-api communications
+"""
+
 from enum import Enum
+from typing import Annotated, TypeAlias
+
+from fastapi import Path, Query
 
 
 class AggTimeOpts(str, Enum):
-    hourly = "hourly"
-    daily = "daily"
-    monthly = "monthly"
+    """
+    Time options for aggregations
+    """
+
+    HOURLY = "hourly"
+    DAILY = "daily"
+    MONTHLY = "monthly"
 
 
 # Not possible to use 'type' keyword: https://github.com/fastapi/fastapi/issues/10719
