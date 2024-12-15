@@ -2,30 +2,55 @@
 Fetcher service for aemet open data
 """
 
+import operator as op
+from asyncio import TaskGroup
+from collections.abc import (
+    Awaitable,
+    Callable,
+    Coroutine,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Mapping
+from datetime import datetime, timedelta
+from itertools import chain, repeat
 from string import Template
 
+import asyncstdlib
 import httpx
 
-from .annot import AemetTicketResponse, AemetWeatherPoint, StationMetaData
-from .exceptions import EndDateValueError, IniDateValueError, StationIdValueError
+from aemetAntartica.fetcher.fetch_functions import aemet_2_step_fetch
+from aemetAntartica.util.bisect import find_between
+from aemetAntartica.util.itertools import grouper
+
+from .annot import AemetWeatherPoint, StationMetaData
+from .context import api_key_ctx, async_httpx_client_ctx
+from .exceptions import (
+    DateRangeValueError,
+    EndDateValueError,
+    IniDateValueError,
+    StationIdValueError,
+)
 
 
 @dataclass(frozen=True)
-class AemetWeatherDataFetcher:
+class AemetWeatherDataFetcherMixin:
     """
     Fetch data from aemet open portal. https://opendata.aemet.es/...
 
     Stations metadata in memory and requests timesereis from aemet opendata portal.
-    """
 
-    "Must have a requested key. See: https://opendata.aemet.es/centrodedescargas/inicio"
-    api_key: str
+    Timeseries method stub only. Implement in subclass.
+
+    Naieve implementation. This will only work for requests with a max range of 1 month.
+    """
 
     "Simple station metadata dict"
     stations_metadata: Mapping[str, StationMetaData]
+
+    "Must have a requested key. See: https://opendata.aemet.es/centrodedescargas/inicio"
+    api_key: str
 
     """Standard python template to generate ticket fetch uri.
     see https://docs.python.org/3/library/string.html#template-strings. The template will have the following parameters:
@@ -63,54 +88,167 @@ class AemetWeatherDataFetcher:
             }
         )
 
-    async def timeseries(
-        self, date0: datetime, dateF: datetime, station_id: str
-    ) -> list[AemetWeatherPoint]:
+    def _common_timeseries_param_validation(
+        self, date_0: datetime, date_f: datetime, station_id: str
+    ):
+        """
+        Raise exception on commmon parameter errors.
+        """
         station_metadata = self._get_station_metadata(station_id)
 
-        dMin = station_metadata["date0"]
-        dMax = station_metadata["datef"]
+        d_min = station_metadata["date0"]
+        d_max = station_metadata["datef"]
 
-        if date0 < dMin:
+        if date_f < date_0:
+            DateRangeValueError(
+                f"end date must be later than init date: date_f={date_f}, date_0={date_0}"
+            )
+
+        if date_0 < d_min:
             raise IniDateValueError(
-                f"Requested date is below minimum: min_date={dMin}, requested_d0={date0}"
+                f"Requested date is below minimum: min_date={d_min}, requested_d0={date_0}"
             )
 
-        if dateF > dMax:
+        if date_f > d_max:
             raise EndDateValueError(
-                f"Requested date is above max: max_date={dMax}, requested_dF={dateF}"
+                f"Requested date is above max: max_date={d_max}, requested_dF={date_f}"
             )
 
+
+@dataclass(frozen=True)
+class AemetWeatherDataFetcherNaive(AemetWeatherDataFetcherMixin):
+    """
+    Straight forward implementation. Adequate for requests of up to a month.
+
+    Not recommended in production. Adequate for very small requests only.
+    """
+
+    async def timeseries(
+        self, date_0: datetime, date_f: datetime, station_id: str
+    ) -> Sequence[AemetWeatherPoint]:
+        # PARAMETER VALIDATION
+        self._common_timeseries_param_validation(date_0, date_f, station_id)
+        if date_f - date_0 > timedelta(days=31):
+            raise DateRangeValueError(
+                "This fetch implementation does not support requests of more than 1 month"
+            )
+
+        # REQUESTS PER SE
+        station_metadata = self._get_station_metadata(station_id)
         ticket_uri = self._params_to_uri(
-            date0,
-            dateF,
+            date_0,
+            date_f,
             station_metadata["station_id"],
         )
-        # TODO: INCLUDE LOGGING OF ALL THE URIS USED.
 
-        headers = {"api_key": self.api_key}
+        async with (
+            httpx.AsyncClient() as client,
+        ):
+            with (
+                async_httpx_client_ctx(client),
+                api_key_ctx(self.api_key),
+            ):
+                return await aemet_2_step_fetch(ticket_uri)
 
-        async with httpx.AsyncClient() as client:
-            ticketReq = await client.get(ticket_uri, headers=headers)
-            if ticketReq.status_code != httpx.codes.OK:
-                raise ValueError(
-                    "Aemet ticket request non OK response", ticket_uri, ticketReq
-                )
-            ticketJson: AemetTicketResponse = ticketReq.json()
-            if ticketJson["estado"] != 200:
-                raise ValueError(
-                    "Aemet ticket content non OK status",
-                    ticket_uri,
-                    ticketReq,
-                    ticketJson,
-                )
 
-            data_uri = ticketJson["datos"]
-            dataReq = await client.get(data_uri)
-            if dataReq.status_code != httpx.codes.OK:
-                raise ValueError(
-                    "Aemet data request non OK response", data_uri, dataReq
-                )
+@dataclass(frozen=True, kw_only=True)
+class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
+    """
+    Request cascade for multi-month requests.
 
-            # IMPLICIT TYPE CASTING...
-            return dataReq.json()
+    Not recommended in production. Good for debugging or for resource-constrained environments.
+    """
+
+    "Used to generate monthly dates. Very relevant for caching."
+    date_generator: Callable[[datetime, datetime], Iterable[datetime]]
+
+    "Used to simply fetch the data from (presumably) aemet services"
+    fetch_function: Callable[[str], Awaitable[list[AemetWeatherPoint]]]
+
+    async def timeseries(
+        self, date_0: datetime, date_f: datetime, station_id: str
+    ) -> Sequence[AemetWeatherPoint]:
+        # PARAMETER VALIDATION
+        self._common_timeseries_param_validation(date_0, date_f, station_id)
+
+        d_range = list(self.date_generator(date_0, date_f))
+        station_metadata = self._get_station_metadata(station_id)
+
+        uris = map(
+            self._params_to_uri,
+            d_range,
+            d_range[1:],
+            repeat(station_metadata["station_id"]),
+        )
+
+        async def req_iterable():
+            async with httpx.AsyncClient() as client:
+                with (
+                    async_httpx_client_ctx(client),
+                    api_key_ctx(self.api_key),
+                ):
+                    for ticket_uri in uris:
+                        yield await self.fetch_function(ticket_uri)
+
+        # MUST DO THIS IN MEMORY SINCE ASYNC ITERABLE DON'T ALLOW FOR YIELD_FROM.
+        res_matrix = await asyncstdlib.list(req_iterable())
+        res_l = list(chain.from_iterable(res_matrix))
+        return res_l
+
+
+@dataclass(frozen=True, kw_only=True)
+class AemetWeatherDataFetcherConcurrent(AemetWeatherDataFetcherMixin):
+    """
+    Parallel requests for multiple-months.
+
+    This implementation may include overfetching. Filter in data validation step
+    """
+
+    "Used to generate monthly dates. Very relevant for caching."
+    date_generator: Callable[[datetime, datetime], Iterable[datetime]]
+
+    "Used to simply fetch the data from (presumably) aemet services"
+    fetch_function: Callable[[str], Coroutine[None, None, Sequence[AemetWeatherPoint]]]
+
+    "Max number of concurrent requests"
+    max_concurrent_requests: int = 10
+
+    async def timeseries(
+        self, date_0: datetime, date_f: datetime, station_id: str
+    ) -> Sequence[AemetWeatherPoint]:
+        # PARAMETER VALIDATION
+        self._common_timeseries_param_validation(date_0, date_f, station_id)
+
+        d_range = list(self.date_generator(date_0, date_f))
+        station_metadata = self._get_station_metadata(station_id)
+
+        uris = map(
+            self._params_to_uri,
+            d_range,
+            d_range[1:],
+            repeat(station_metadata["station_id"]),
+        )
+        coros = map(self.fetch_function, uris)
+        concurrency_rate = min(self.max_concurrent_requests, len(d_range) - 1)
+        coros_chunks = grouper(coros, concurrency_rate)
+
+        # DIVIDED IN 2 FUNCTIONS FOR EASIER READIBILITY.
+        async def parallel_req():
+            async with (
+                httpx.AsyncClient() as client,
+            ):
+                with (
+                    async_httpx_client_ctx(client),
+                    api_key_ctx(self.api_key),
+                ):
+                    for coros_chunk in coros_chunks:
+                        async with TaskGroup() as tg:
+                            tasks = list(map(tg.create_task, coros_chunk))
+                        for t in tasks:
+                            yield t.result()
+
+        # MUST DO THIS IN MEMORY SINCE ASYNC ITERABLE DON'T ALLOW FOR YIELD_FROM.
+        res_matrix = await asyncstdlib.list(parallel_req())
+        res_l = list(chain.from_iterable(res_matrix))
+
+        return res_l

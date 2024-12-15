@@ -4,6 +4,7 @@ Purely declarative type definitions
 
 from typing import Protocol, TypedDict, Sequence
 from datetime import datetime
+from httpx import AsyncClient
 
 
 class StationMetaData(TypedDict):
@@ -37,7 +38,7 @@ class WeatherDataFetcher[T: WeatherPoint](Protocol):
         ...
 
     async def timeseries(
-        self, date0: datetime, dateF: datetime, station_id: str
+        self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[T]:
         """
         Request station data to external API.
