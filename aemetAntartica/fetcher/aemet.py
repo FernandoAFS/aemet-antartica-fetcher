@@ -1,7 +1,7 @@
 """
 Fetcher service for aemet open data
 """
-
+import logging
 import operator as op
 from asyncio import TaskGroup
 from collections.abc import (
@@ -21,7 +21,6 @@ import asyncstdlib
 import httpx
 
 from aemetAntartica.fetcher.fetch_functions import aemet_2_step_fetch
-from aemetAntartica.util.bisect import find_between
 from aemetAntartica.util.itertools import grouper
 
 from .annot import AemetWeatherPoint, StationMetaData
@@ -33,6 +32,8 @@ from .exceptions import (
     StationIdValueError,
 )
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 @dataclass(frozen=True)
 class AemetWeatherDataFetcherMixin:
@@ -126,9 +127,13 @@ class AemetWeatherDataFetcherNaive(AemetWeatherDataFetcherMixin):
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[AemetWeatherPoint]:
-        # PARAMETER VALIDATION
+        """
+        Directly fetch as much as possible in one request.
+        """
         self._common_timeseries_param_validation(date_0, date_f, station_id)
-        if date_f - date_0 > timedelta(days=31):
+        months_diff = date_f.month - date_0.month
+        days_diff = date_f.day - date_0.day
+        if (months_diff >= 1) & (days_diff > 0):
             raise DateRangeValueError(
                 "This fetch implementation does not support requests of more than 1 month"
             )
@@ -165,21 +170,32 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
     "Used to simply fetch the data from (presumably) aemet services"
     fetch_function: Callable[[str], Awaitable[list[AemetWeatherPoint]]]
 
+    "Move the end of the day request few minutes before the start of the next one to avoid overlapping intervals"
+    last_date_offset: timedelta = timedelta(minutes=10)
+
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[AemetWeatherPoint]:
         # PARAMETER VALIDATION
         self._common_timeseries_param_validation(date_0, date_f, station_id)
 
-        d_range = list(self.date_generator(date_0, date_f))
+
+        dates_0 = list(self.date_generator(date_0, date_f))
+        dates_f = map(op.sub, dates_0[1:], repeat(self.last_date_offset))
+
         station_metadata = self._get_station_metadata(station_id)
 
         uris = map(
             self._params_to_uri,
-            d_range,
-            d_range[1:],
+            dates_0,
+            dates_f,
             repeat(station_metadata["station_id"]),
         )
+        uris_l = list(uris)
+
+        logger.debug("Making the following requests: ")
+        for uri in uris_l:
+            logger.debug(uri)
 
         async def req_iterable():
             async with httpx.AsyncClient() as client:
@@ -187,8 +203,10 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
                     async_httpx_client_ctx(client),
                     api_key_ctx(self.api_key),
                 ):
-                    for ticket_uri in uris:
+                    for ticket_uri in uris_l:
+                        logger.debug("Requesting uri: %s", ticket_uri)
                         yield await self.fetch_function(ticket_uri)
+                        logger.debug("Request competed sucessfully")
 
         # MUST DO THIS IN MEMORY SINCE ASYNC ITERABLE DON'T ALLOW FOR YIELD_FROM.
         res_matrix = await asyncstdlib.list(req_iterable())
@@ -213,23 +231,29 @@ class AemetWeatherDataFetcherConcurrent(AemetWeatherDataFetcherMixin):
     "Max number of concurrent requests"
     max_concurrent_requests: int = 10
 
+    "Move the end of the day request few minutes before the start of the next one to avoid overlapping intervals"
+    last_date_offset: timedelta = timedelta(minutes=10)
+
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[AemetWeatherPoint]:
         # PARAMETER VALIDATION
         self._common_timeseries_param_validation(date_0, date_f, station_id)
 
-        d_range = list(self.date_generator(date_0, date_f))
+        dates_0 = list(self.date_generator(date_0, date_f))
+        dates_f = map(op.sub, dates_0[1:], repeat(self.last_date_offset))
+
         station_metadata = self._get_station_metadata(station_id)
 
         uris = map(
             self._params_to_uri,
-            d_range,
-            d_range[1:],
+            dates_0,
+            dates_f,
             repeat(station_metadata["station_id"]),
         )
+
         coros = map(self.fetch_function, uris)
-        concurrency_rate = min(self.max_concurrent_requests, len(d_range) - 1)
+        concurrency_rate = min(self.max_concurrent_requests, len(dates_0) - 1)
         coros_chunks = grouper(coros, concurrency_rate)
 
         # DIVIDED IN 2 FUNCTIONS FOR EASIER READIBILITY.

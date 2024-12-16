@@ -9,6 +9,8 @@ from math import isnan
 from typing import Callable, Sequence
 
 
+from .annot import AggregatorCb
+
 from aemetAntartica.model.fetch import WeatherDataPoint
 from aemetAntartica.util.itertools import grouper
 
@@ -20,7 +22,12 @@ def calc_mean(vals: Sequence[float]) -> float:
     """
     Calc the mean ignoring nan values.
     """
+
     non_nan_vals = list(filterfalse(isnan, vals))
+
+    if len(non_nan_vals) <= 0:
+        return 0
+
     return sum(non_nan_vals) / len(non_nan_vals)
 
 
@@ -31,6 +38,10 @@ def calc_median(vals: Sequence[float]) -> float:
     Takes the middle point if the series is odd and the average of the two center if it's even.
     """
     non_nan_vals = list(filterfalse(isnan, vals))
+
+    if len(non_nan_vals) <= 0:
+        return 0
+
     nn_sorted = sorted(non_nan_vals)
     len_ = len(nn_sorted)
     if len_ % 2 == 0:
@@ -113,13 +124,13 @@ def picker_agg_factory[T](
 
 
 "Take the first measurement of the group"
-first_agg = picker_agg_factory(
+first_agg: AggregatorCb[WeatherDataPoint] = picker_agg_factory(
     agg_f=op.itemgetter(0),
     date_getter=op.attrgetter("fhora"),
 )
 
 "Take the last measurement of the group"
-last_agg = picker_agg_factory(
+last_agg: AggregatorCb[WeatherDataPoint] = picker_agg_factory(
     agg_f=op.itemgetter(-1),
     date_getter=op.attrgetter("fhora"),
 )
@@ -151,7 +162,7 @@ def calc_agg_factory[T](
 
 
 "Calculate the mean of every numeric property"
-mean_agg = calc_agg_factory(
+mean_agg: AggregatorCb[WeatherDataPoint] = calc_agg_factory(
     agg_f=calc_mean,
     date_f=op.itemgetter(0),
     date_picker=op.attrgetter("fhora"),
@@ -159,9 +170,15 @@ mean_agg = calc_agg_factory(
 )
 
 "Calculate the median of every numeric property"
-median_agg = calc_agg_factory(
+median_agg: AggregatorCb[WeatherDataPoint] = calc_agg_factory(
     agg_f=calc_median,
     date_f=op.itemgetter(0),
     date_picker=op.attrgetter("fhora"),
     model_f=do_model_calculation,
 )
+
+def identity_agg[T](data_in: Sequence[T], period: timedelta) -> Sequence[T]:
+    """
+    Used exclusively to represent raw data. Helps polimorphism.
+    """
+    return data_in

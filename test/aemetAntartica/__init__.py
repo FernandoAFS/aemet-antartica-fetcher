@@ -1,0 +1,3 @@
+"""
+Aemet fetcher top level
+"""

@@ -27,6 +27,9 @@ pytest-asyncio = "^0.25.0"
 
 [tool.poetry.group.sci.dependencies]
 numpy = "^2.2.0"
+pandas = "^2.2.3"
+pyarrow = "^18.1.0"
+matplotlib = "^3.10.0"
 
 [build-system]
 requires = ["poetry-core"]

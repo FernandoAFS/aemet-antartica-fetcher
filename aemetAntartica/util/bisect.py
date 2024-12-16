@@ -1,3 +1,7 @@
+"""
+Extra bisect-based functionality.
+"""
+
 from typing import Sequence, Callable
 import bisect
 
@@ -13,6 +17,6 @@ def find_between[T, V](
     # IGNORING TYPES UNTIL THERE IS A WAY TO SPECIFY V AS COMPARABLE TYPE.
     s_vals = sorted(values, key=key)  # type: ignore
     ndx0 = bisect.bisect_left(s_vals, left, key=key)  # type: ignore
-    ndxf = bisect.bisect_right(s_vals, right, key=key)  # type: ignore
+    ndxf = bisect.bisect_left(s_vals, right, key=key)  # type: ignore
 
     return s_vals[ndx0:ndxf]
