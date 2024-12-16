@@ -7,7 +7,14 @@ from enum import Enum
 
 from aemetAntartica.model.fetch import WeatherDataPoint
 from aemetAntartica.aggregator.annot import AggregatorCb
-from aemetAntartica.aggregator.iteration import first_agg, last_agg, mean_agg, median_agg, identity_agg
+from aemetAntartica.aggregator.iteration import (
+    first_agg,
+    last_agg,
+    mean_agg,
+    median_agg,
+    identity_agg,
+)
+
 
 class AggTimeOpts(str, Enum):
     """

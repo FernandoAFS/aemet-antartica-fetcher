@@ -80,7 +80,7 @@ def pagination_series_to_response(
         )
 
     def reduce_d(d: WeatherPointResponse) -> WeatherPointResponse:
-        return {k: d[k] for k in ["fhora", *keys]} # type: ignore
+        return {k: d[k] for k in ["fhora", *keys]}  # type: ignore
 
     reduced_points_d = list(map(reduce_d, points_d))
 
@@ -89,5 +89,3 @@ def pagination_series_to_response(
         has_previous=series.has_previous,
         has_next=series.has_next,
     )
-
-

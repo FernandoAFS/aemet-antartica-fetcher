@@ -3,14 +3,14 @@ Dependencies factories for fastapi
 """
 
 import operator
-from typing import Annotated, Callable, TypeAlias, TypeVar
+from typing import Annotated, Callable, TypeAlias
 
 from fastapi import Depends
 
 from aemetAntartica.fetcher.annot import WeatherDataFetcher, WeatherPoint
 from aemetAntartica.fetcher.factory import cached_gen_aemet_fetcher_env_var
 from aemetAntartica.model.factory import change_series_timezone_os
-from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
+from aemetAntartica.model.fetch import WeatherDataPoint
 from aemetAntartica.util.bisect import find_between
 
 from .enum import AggTimeOpts, AggTypeOpts

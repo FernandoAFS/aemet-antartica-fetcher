@@ -18,8 +18,7 @@ def validate_filter_fetch_input(
     """
     Filter Weather Series
     """
-    filter_points = find_between(series.points, date_0, date_f, key=operator.attrgetter("fhora"))
+    filter_points = find_between(
+        series.points, date_0, date_f, key=operator.attrgetter("fhora")
+    )
     return WeatherDataPointSeries.model_validate({"points": filter_points})
-
-
-

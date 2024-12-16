@@ -4,7 +4,6 @@ Purely declarative type definitions
 
 from typing import Protocol, TypedDict, Sequence
 from datetime import datetime
-from httpx import AsyncClient
 
 
 class StationMetaData(TypedDict):

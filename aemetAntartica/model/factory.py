@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from .tz_fetch import set_point_timzone
 from .fetch import WeatherDataPoint
 
+
 def change_series_timezone_os() -> Callable[[WeatherDataPoint], WeatherDataPoint]:
     """
     Generate datetime switcher factory from environment variables:
@@ -18,4 +19,3 @@ def change_series_timezone_os() -> Callable[[WeatherDataPoint], WeatherDataPoint
     zone_key = environ.get("AEMET_TIMEZONE_RESULT", "Europe/Madrid")
     zi = ZoneInfo(zone_key)
     return set_point_timzone(zi)
-

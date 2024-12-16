@@ -177,6 +177,7 @@ median_agg: AggregatorCb[WeatherDataPoint] = calc_agg_factory(
     model_f=do_model_calculation,
 )
 
+
 def identity_agg[T](data_in: Sequence[T], period: timedelta) -> Sequence[T]:
     """
     Used exclusively to represent raw data. Helps polimorphism.

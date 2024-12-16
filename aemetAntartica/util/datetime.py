@@ -19,7 +19,9 @@ def date_range(td: timedelta, d0: datetime, df: datetime) -> Iterable[datetime]:
     yield df
 
 
-date_range_30: Callable[[ datetime, datetime ], Iterable[datetime]] = partial(date_range, timedelta(days=30))
+date_range_30: Callable[[datetime, datetime], Iterable[datetime]] = partial(
+    date_range, timedelta(days=30)
+)
 
 
 def monthly_date_range(d0: datetime, df: datetime):
@@ -30,9 +32,10 @@ def monthly_date_range(d0: datetime, df: datetime):
 
     if d0.month == df.month:
         yield d0.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        yield df.replace(month=df.month+1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        yield df.replace(
+            month=df.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
         return
-
 
     d0_ = d0.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     df_ = df.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -41,4 +44,4 @@ def monthly_date_range(d0: datetime, df: datetime):
         if d0_.month < 12:
             d0_ = d0_.replace(month=d0_.month + 1)
         else:
-            d0_ = d0_.replace(year=d0_.year+1, month=1)
+            d0_ = d0_.replace(year=d0_.year + 1, month=1)

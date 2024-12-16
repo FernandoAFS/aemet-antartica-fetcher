@@ -18,4 +18,5 @@ class WeatherDataPoint(BaseModel):
 
 class WeatherDataPointSeries(BaseModel):
     "Wrapper class to assist validation of multiple points"
+
     points: list[WeatherDataPoint]

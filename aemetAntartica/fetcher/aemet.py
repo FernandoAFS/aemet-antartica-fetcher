@@ -1,6 +1,7 @@
 """
 Fetcher service for aemet open data
 """
+
 import logging
 import operator as op
 from asyncio import TaskGroup
@@ -34,6 +35,7 @@ from .exceptions import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
 
 @dataclass(frozen=True)
 class AemetWeatherDataFetcherMixin:
@@ -178,7 +180,6 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
     ) -> Sequence[AemetWeatherPoint]:
         # PARAMETER VALIDATION
         self._common_timeseries_param_validation(date_0, date_f, station_id)
-
 
         dates_0 = list(self.date_generator(date_0, date_f))
         dates_f = map(op.sub, dates_0[1:], repeat(self.last_date_offset))
