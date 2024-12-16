@@ -5,6 +5,8 @@ Fast-api based aemet-antartica data fetcher.
 
 Usage requires amet-api-key. More information in [AEMET OpenData](https://opendata.aemet.es/centrodedescargas/inicio)
 
+![Api-docs screenshot](./capture.png)
+
 ## Install
 
 `poetry install [--all-extras]`
