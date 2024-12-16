@@ -2,7 +2,8 @@
 Purely declarative type definitions
 """
 
-from typing import Protocol, TypedDict, Sequence
+from collections.abc import Sequence
+from typing import Protocol, TypedDict
 from datetime import datetime
 
 

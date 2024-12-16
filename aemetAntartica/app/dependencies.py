@@ -26,7 +26,6 @@ from .response import (
     weather_data_point_pagination_factory,
 )
 
-
 AemetDataFetcher: TypeAlias = Annotated[
     WeatherDataFetcher[WeatherPoint], Depends(cached_gen_aemet_fetcher_env_var)
 ]

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from itertools import chain, repeat
 from string import Template
 
+import structlog
 import asyncstdlib
 import httpx
 
@@ -33,8 +34,7 @@ from .exceptions import (
     StationIdValueError,
 )
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger = structlog.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -182,7 +182,7 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
         self._common_timeseries_param_validation(date_0, date_f, station_id)
 
         dates_0 = list(self.date_generator(date_0, date_f))
-        dates_f = map(op.sub, dates_0[1:], repeat(self.last_date_offset))
+        dates_f = list(map(op.sub, dates_0[1:], repeat(self.last_date_offset)))
 
         station_metadata = self._get_station_metadata(station_id)
 
@@ -194,10 +194,6 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
         )
         uris_l = list(uris)
 
-        logger.debug("Making the following requests: ")
-        for uri in uris_l:
-            logger.debug(uri)
-
         async def req_iterable():
             async with httpx.AsyncClient() as client:
                 with (
@@ -205,13 +201,28 @@ class AemetWeatherDataFetcherSerial(AemetWeatherDataFetcherMixin):
                     api_key_ctx(self.api_key),
                 ):
                     for ticket_uri in uris_l:
-                        logger.debug("Requesting uri: %s", ticket_uri)
+                        logger.debug("uri request", ticket_uri=ticket_uri)
                         yield await self.fetch_function(ticket_uri)
-                        logger.debug("Request competed sucessfully")
+
+        logger.info(
+            "Starting serial request",
+            n_requests=len(uris_l),
+            date_0=date_0,
+            date_f=date_f,
+            date_intervals=list(
+                zip(
+                    dates_0,
+                    dates_f,
+                )
+            ),
+        )
 
         # MUST DO THIS IN MEMORY SINCE ASYNC ITERABLE DON'T ALLOW FOR YIELD_FROM.
         res_matrix = await asyncstdlib.list(req_iterable())
         res_l = list(chain.from_iterable(res_matrix))
+
+        logger.info("Serial fetch complete", n_points=len(res_l))
+
         return res_l
 
 
