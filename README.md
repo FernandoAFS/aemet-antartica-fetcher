@@ -76,7 +76,7 @@ Aspects of the application I'm not totally satisfied about:
 - Do a frontend. Maybe jinja2 + tailwindcss + vegajs is enough.
 - Improve on aggregation functions. This take a time delta argument to slice in chunks. This is not adequate for months. Use a functional approach with "chunker" function over a sorted list of objects with dates.
 - Make logging more consistent through the application.
-- Create logging context and inject the user HTTP request ID and create a UUID for each outgoing request.
+- ~~Create logging context and inject the user HTTP request ID and create a UUID for each outgoing request.~~
 - Include timeouts for fetching operations. This has not been a problem so far but I would be to have them under control.
 - Include 4XX responses on wrong input and potentially other controlled errors.
 
