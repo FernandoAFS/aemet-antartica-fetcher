@@ -149,15 +149,15 @@ To run instrumented application using `just` simply: `just otel-run`
 
 Logs:
 
-![loki-logs.png](Loki logs on Grafana)
+![Loki logs on Grafana](loki-logs.png)
 
 Metrics:
 
-![mimir-metrics.png](Prometheus style metrics with mimir)
+![Prometheus style metrics with mimir](mimir-metrics.png)
 
 Traces:
 
-![tempo-trace.png](Jaeger style traces)
+![Jaeger style traces](tempo-trace.png)
 
-![tempo-trace-event.png](Jaeger style traces with event)
+![Jaeger style traces with event](tempo-trace-event.png)
 
