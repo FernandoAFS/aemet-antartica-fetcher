@@ -22,6 +22,7 @@ AEMET_API_KEY="<YOUR-AEMET-KEY>" fastapi dev aemetAntartica/app/app.py
 ```
 
 With sql cache 
+
 ```
 poetry shell
 AEMET_API_KEY="<YOUR-AEMET-KEY>" AEMET_SQLITE_URL="<SQLITE-FILE:cache.db>" fastapi dev aemetAntartica/app/app.py
@@ -46,7 +47,6 @@ AEMET_API_KEY="<YOUR-AEMET-KEY>" pytest test/aemetAntartica/integration/
 ```
 
 This tests are done to check the different fetch implementation.
-
 
 ## Configuration:
 
@@ -122,3 +122,42 @@ Middleware may be more straight forward and flexible for developers.
 The main benefit of including authentication would be to prevent leaking of information, improvement of metrics data since we now have more information about how the application is used and it would allow us to provide different functionality in the future. The trade-offs would be the increase in complexity of the application. If done right there should be no trade-offs if done right.
 
 I personally have a hard time seeing the point aside from selling the potential results of the analysis as a api-service.
+
+### Observability:
+
+Grafana observability stack included in dockerfile.
+
+To install instrumentation libraries:
+
+```
+poetry install -G instrumentation
+opentelementry-bootstrap -a install
+```
+
+To start local services:
+
+```
+cd compose-observability
+podman compose up -d
+```
+
+Grafana includes pre-configured datasources.
+
+To run instrumented application using `just` simply: `just otel-run`
+
+#### Screenshots:
+
+Logs:
+
+![loki-logs.png](Loki logs on Grafana)
+
+Metrics:
+
+![mimir-metrics.png](Prometheus style metrics with mimir)
+
+Traces:
+
+![tempo-trace.png](Jaeger style traces)
+
+![tempo-trace-event.png](Jaeger style traces with event)
+
