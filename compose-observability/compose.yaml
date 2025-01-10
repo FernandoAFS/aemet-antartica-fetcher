@@ -1,0 +1,65 @@
+services:
+
+  alloy: 
+    image: docker.io/grafana/alloy
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--stability.level=experimental"
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+    ports:
+      - 4317:4317 # otlp grpc
+      - 12345:12345
+    depends_on:
+      - tempo
+      - loki
+      - mimir
+
+  tempo:
+    image: docker.io/grafana/tempo
+    command: 
+      - "-config.file=/etc/tempo.yaml"
+    ports:
+      - 3200:3200 # tempo
+      #- "4317" # otlp grpc
+    #depends_on:
+    #  - grafana
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml:ro
+
+  loki:
+    image: docker.io/grafana/loki
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml:ro
+    ports:
+      - 3100:3100
+
+  mimir:
+    image: docker.io/grafana/mimir
+    ports:
+      - 9009:9009
+    command:
+      - "-config.file=/etc/mimir/mimir.yaml"
+    volumes:
+      - ./mimir-config.yaml:/etc/mimir/mimir.yaml:ro
+    ports:
+      - 9090:9090
+      - 9009:9009
+
+  grafana:
+    image: docker.io/grafana/grafana
+    entrypoint:
+      - /usr/share/grafana/bin/grafana-server
+      - --homepath=/usr/share/grafana
+      - --config=/etc/grafana-config/grafana.ini
+    ports:
+     - 3000:3000
+    volumes:
+      - ./grafana/config.ini:/etc/grafana-config/grafana.ini
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasource.yaml
+      #- ./grafana/dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      #- ./grafana/dashboards:/var/lib/grafana/dashboards
+
+    

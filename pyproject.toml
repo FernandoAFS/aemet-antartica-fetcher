@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["fernando fernández soto <fernando.andeca@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -24,6 +25,7 @@ pylint = "^3.3.2"
 bandit = "^1.8.0"
 mypy = "^1.13.0"
 pytest-asyncio = "^0.25.0"
+opentelemetry-distro = "^0.50b0"
 
 
 [tool.poetry.group.sci.dependencies]
@@ -36,12 +38,13 @@ matplotlib = "^3.10.0"
 [tool.poetry.group.sqlite.dependencies]
 aiosqlite = "^0.20.0"
 
+
+[tool.poetry.group.instrumentation.dependencies]
+opentelemetry-distro = {extras = ["otlp"], version = "^0.50b0"}
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-dev="fastapi dev aemetantartica/app/app.py"
 
 [tool.pytest.ini_options]
 pythonpath = [

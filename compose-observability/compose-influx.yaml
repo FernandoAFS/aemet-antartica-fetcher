@@ -1,0 +1,37 @@
+
+services:
+
+  telegraf:
+    image: docker.io/telegraf
+    cap_add:
+      - cap_net_raw
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    ports:
+      - 4317:4317 # RECIEVE INPUTS FOR OTEL-GRPC
+    environment:
+      INFLUX_TOKEN: super-secret-admin-token
+      INFLUX_ORGANIZATION: observability
+      INFLUX_BUCKET: otel
+    depends_on:
+      - influxdb
+
+  influxdb:
+    image: docker.io/influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: user
+      DOCKER_INFLUXDB_INIT_PASSWORD: password
+      DOCKER_INFLUXDB_INIT_ORG: observability
+      DOCKER_INFLUXDB_INIT_BUCKET: otel
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: super-secret-admin-token
+    ports:
+      - 8086:8086
+
+  grafana:
+    image: docker.io/grafana/grafana
+    ports:
+     - 3000:3000
+    depends_on:
+      - influxdb
+
