@@ -18,22 +18,25 @@ from .annot import WeatherDataFetcher, WeatherPoint
 from .fetch_functions import aemet_2_step_fetch, cached_aemet_2_step_fetch
 from .sql_cache import sqlite_cache_fetcher_proxy_factory
 from .static import named_station_metadata
+from .fastapi import AemetFastapiErrorsWrapper
 
 logger = structlog.get_logger()
 
 
 async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
     """
-    Return an AEMET fetcher based on environment_variables
+    Return an AEMET fetcher based on environment_variables. Always wraps
+    fetcher with fast-api errors proxy.
 
     Environment Variables:
     - AEMET_API_KEY: aemet open data api key. (required)
     - AEMET_FETCHER_TYPE: serial, concurrent or naive (default: serial)
     - AEMET_CACHED: none or memory (default: memory)
     - AEMET_DATE_GEN: month or naive (default: month)
-    - AEMET_STATIONS_METADATA_JSON: path to the stations metadata file (default data if none)
-    - AEMET_SQLITE_URL: including sqlite cache if informed. (default data if none)
-    """
+    - AEMET_STATIONS_METADATA_JSON: path to the stations metadata file (default
+      data if none)
+    - AEMET_SQLITE_URL: including sqlite cache if informed. (default data if
+    none)"""
 
     # TODO: EXPAND THE ENVIRONMENT VARIABLES FOR ALL OPTIONAL ARGUMENTS.
     # TODO: INCLUDE MOCK TYPE
@@ -101,7 +104,7 @@ async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
             sqlite_uri=sqlite_uri,
         )
 
-    return fetcher
+    return AemetFastapiErrorsWrapper(data_fetch=fetcher)
 
 
 __fetcher = None

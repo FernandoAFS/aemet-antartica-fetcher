@@ -103,7 +103,7 @@ class SqliteCacheFetcherProxy:
 
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
-    ) -> Sequence[WeatherDataPoint]:
+    ) -> Sequence[WeatherPoint]:
         """
         Fetch data from sql. Check for gaps. Fetch those gaps in the network and finally insert them back to sql.
         """
@@ -123,12 +123,15 @@ class SqliteCacheFetcherProxy:
                 async for row in cursor:
                     yield row
 
-        rows = await asyncstdlib.list(fetch_rows())
-
-        logger.debug(
-            "Fetched points from sql",
-            n_points=len(rows),
-        )
+        try:
+            rows = await asyncstdlib.list(fetch_rows())
+            logger.debug(
+                "Fetched points from sql",
+                n_points=len(rows),
+            )
+        except Exception as e:
+            rows = []
+            logger.warn("Exception while fetching rows", e)
 
         def row_to_dict(row: tuple) -> dict:
             return dict(zip(_FETCH_COLUMNS, row))
@@ -140,7 +143,7 @@ class SqliteCacheFetcherProxy:
 
         async def complete_fetching():
             """
-            Fetch all the data not in sql database
+            Request all the data not in sql database
             """
 
             if len(sql_res_series_tz.points) <= 0:
@@ -170,15 +173,15 @@ class SqliteCacheFetcherProxy:
             pre_extra = await fetch_gap(date_0, sql_d0)
             # THIS DATE OFFSET MAY HELP HELP THE DATE GENERATOR LATER...
             pos_extra = await fetch_gap(sql_df + self.date_offset, date_f)
+
             return [
                 *pre_extra,
                 *pos_extra,
             ]
 
+        # TODO: REVIEW THIS
         extra_fetching = await complete_fetching()
-        fetch_res_series = WeatherDataPointSeries.model_validate(
-            {"points": extra_fetching}
-        )
+        fetch_res_series = WeatherDataPointSeries.model_validate({"points": Fetch})
 
         async def insert_missing_data():
             """
@@ -200,17 +203,20 @@ class SqliteCacheFetcherProxy:
 
             insert_stmt = insert_statement_gen(insert_points, station_id)
 
-            # LOG
             async with aiosqlite.connect(self.sqlite_uri) as db:
                 await db.execute(insert_stmt)
                 await db.commit()
+
             logger.debug(
                 "Point insert complete",
                 n_points=len(fetch_res_series.points),
             )
 
-        if len(fetch_res_series.points) > 0:
-            await insert_missing_data()
+        try:
+            if len(fetch_res_series.points) > 0:
+                await insert_missing_data()
+        except Exception as e:
+            logger.warn("Error inserting rows", e)
 
         logger.info(
             "Sql cache return",
@@ -221,7 +227,7 @@ class SqliteCacheFetcherProxy:
         return [
             *sql_res_series_tz.points,
             *fetch_res_series.points,
-        ]
+        ]  # type: ignore
 
 
 async def sqlite_cache_fetcher_proxy_factory(

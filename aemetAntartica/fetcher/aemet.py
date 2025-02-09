@@ -2,7 +2,6 @@
 Fetcher service for aemet open data
 """
 
-import logging
 import operator as op
 from asyncio import TaskGroup
 from collections.abc import (
