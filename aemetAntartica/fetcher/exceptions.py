@@ -17,3 +17,7 @@ class EndDateValueError(ValueError):
 
 class DateRangeValueError(ValueError):
     "Both d0 and df are to blame. i.e. when df < d0"
+
+
+class AemetRequestError(Exception):
+    "When there has been a error of any kind in the server"

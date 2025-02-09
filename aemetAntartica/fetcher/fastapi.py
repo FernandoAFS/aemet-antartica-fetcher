@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from .annot import WeatherPoint, WeatherDataFetcher
 from .exceptions import (
+    AemetRequestError,
     DateRangeValueError,
     EndDateValueError,
     IniDateValueError,
@@ -59,6 +60,11 @@ class AemetFastapiErrorsWrapper[T: WeatherPoint]:
             raise HTTPException(
                 status_code=400,
                 detail="Date range deemed invalid by value provider",
+            ) from e
+        except AemetRequestError as e:
+            raise HTTPException(
+                status_code=400,
+                detail="Error on aemet server",
             ) from e
         except Exception as e:
             raise HTTPException(

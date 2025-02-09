@@ -2,8 +2,8 @@
 SQL cache logic
 """
 
-import operator
-from collections.abc import Sequence
+from operator import attrgetter
+from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from math import isinf, isnan
@@ -17,7 +17,7 @@ from aemetAntartica.fetcher.annot import WeatherDataFetcher, WeatherPoint
 from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
 from aemetAntartica.model.tz_fetch import change_series_timezone
 from aemetAntartica.util.bisect import remove_gap
-
+from aemetAntartica.util.task_group import parallel_task
 logger = structlog.get_logger(__name__)
 
 # SQL STATEMENTS FUNCTIONS AND DECLARATIONS
@@ -179,9 +179,10 @@ class SqliteCacheFetcherProxy:
                 *pos_extra,
             ]
 
-        # TODO: REVIEW THIS
         extra_fetching = await complete_fetching()
-        fetch_res_series = WeatherDataPointSeries.model_validate({"points": Fetch})
+        fetch_res_series = WeatherDataPointSeries.model_validate(
+            {"points": extra_fetching}
+        )
 
         async def insert_missing_data():
             """
@@ -196,7 +197,7 @@ class SqliteCacheFetcherProxy:
                     fetch_res_series.points,
                     sql_d0,
                     sql_df,
-                    key=operator.attrgetter("fhora"),
+                    key=attrgetter("fhora"),
                 )
             else:
                 insert_points = fetch_res_series.points
@@ -240,3 +241,129 @@ async def sqlite_cache_fetcher_proxy_factory(
     async with aiosqlite.connect(sqlite_uri) as db:
         await db.executescript(_CREATE_TABLE_STATEMENT)
     return SqliteCacheFetcherProxy(fetcher=fetcher, sqlite_uri=sqlite_uri)
+
+
+@dataclass
+class SqliteCacheFetcherProxySet:
+    """
+    Proxy fetcher that captures requests. Answers with sqlite data if possible and delegates on fetcher for true data-source.
+
+    Don't istanciate directly. Use sqlite_cache_fetcher_proxy_factory.
+    """
+
+    fetcher: WeatherDataFetcher[WeatherPoint]
+    sqlite_uri: str
+    date_offset: timedelta = timedelta(minutes=10)
+
+    async def stations(self) -> Sequence[str]:
+        "Call fetcher"
+        return await self.fetcher.stations()
+
+    async def time_range(self, station_id: str) -> tuple[datetime, datetime]:
+        "Call fetcher"
+        return await self.fetcher.time_range(station_id)
+
+    async def timeseries(
+        self, date_0: datetime, date_f: datetime, station_id: str
+    ) -> Sequence[WeatherPoint]:
+        """
+        Fetch data from sql. Check for gaps. Fetch those gaps in the network and finally insert them back to sql.
+        """
+
+        # 1. Fetch all available data from sql cache.
+        sel_stmt = _FETCH_INTERVAL_TEMPLATE.substitute(
+            {
+                "date_0": date_0.strftime(_SQL_DATE_FORMAT),
+                "date_f": (date_f - self.date_offset).strftime(_SQL_DATE_FORMAT),
+                "station_id": station_id,
+            }
+        )
+
+        async def fetch_rows():
+            async with (
+                aiosqlite.connect(self.sqlite_uri) as db,
+                db.execute(sel_stmt) as cursor,
+            ):
+                async for row in cursor:
+                    yield row
+
+        try:
+            rows = await asyncstdlib.list(fetch_rows())
+            logger.debug(
+                "Fetched points from sql",
+                n_points=len(rows),
+            )
+        except Exception as e:
+            rows = []
+            logger.warn("Exception while fetching rows", e)
+
+        def row_to_dict(row: tuple) -> dict:
+            return dict(zip(_FETCH_COLUMNS, row))
+
+        sql_res_series = WeatherDataPointSeries.model_validate(
+            {"points": list(map(row_to_dict, rows))}  # type: ignore
+        )
+        sql_res_series_tz = change_series_timezone(UTC, sql_res_series)
+
+        # 2. Detect all cache misses.
+
+        def gen_cache_misses() -> Generator[tuple[datetime, datetime]]:
+            """Since sql results are sequential iteratively check that every
+            gap is dt_offset. Return gaps if found"""
+
+            dates: map[datetime] = map(
+                attrgetter("fhora"), sql_res_series_tz.points
+            )
+            d0 = next(dates)
+            for df in dates:
+                if df - d0 > self.date_offset:
+                    yield (d0, df)
+                d0 = df
+
+        missing_gaps = list(gen_cache_misses())
+        if len(missing_gaps) > 0:
+            logger.debug(
+                "Fetching the following cache gaps",
+                gaps=[{"d0": d0, "df": df} for d0, df in missing_gaps],
+            )
+
+        # 3. Fetching all gaps and push them to SQL cache.
+
+        async def fetch_and_push(d0: datetime, df: datetime) -> Sequence[WeatherPoint]:
+            "Fetch data and insert it in SQL db for each gap sequentially"
+            fetched = await self.fetcher.timeseries(d0, df, station_id)
+
+            # THIS STEP IS REQUIRED TO CONVERT THE RAW OUTPUT OF THE FETCH TO ACTIONABLE DATA.
+            typed_points = WeatherDataPointSeries.model_validate({"points": fetched})
+            # CONSIDER MOVING THIS BACKGROUND TASK TO A SERVICE.
+            insert_stmt = insert_statement_gen(typed_points.points, station_id)
+            try:
+                async with aiosqlite.connect(self.sqlite_uri) as db:
+                    await db.execute(insert_stmt)
+                    await db.commit()
+            except Exception as e:
+                logger.warn("Error inserting rows", e)
+
+            return fetched
+
+        tasks = [fetch_and_push(d0, df) for d0, df in missing_gaps]
+        results = await parallel_task(*tasks)
+        fetched_points = [point for points in results for point in points]
+
+        sql_points: Sequence[WeatherPoint] = sql_res_series_tz.model_dump()["points"]
+
+        # SORT RESULTS BY TIME.
+        return sorted([*fetched_points, *sql_points], key=attrgetter("fhora"))
+
+
+
+async def sqlite_set_cache_fetcher_proxy_factory(
+    fetcher: WeatherDataFetcher[WeatherPoint], sqlite_uri: str
+) -> SqliteCacheFetcherProxySet:
+    """
+    Creates table if it doesn't exist already.
+    """
+    logger.info("Creating sql proxy for fetcher")
+    async with aiosqlite.connect(sqlite_uri) as db:
+        await db.executescript(_CREATE_TABLE_STATEMENT)
+    return SqliteCacheFetcherProxySet(fetcher=fetcher, sqlite_uri=sqlite_uri)
