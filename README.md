@@ -58,12 +58,10 @@ All configuration options are environment-variable based:
 
 ### Optional:
 
-- AEMET_FETCHER_TYPE: serial, concurrent or naive (default: serial)
-- AEMET_CACHED: none or memory (default: memory)
-- AEMET_DATE_GEN: month or naive (default: month)
-- AEMET_STATIONS_METADATA_JSON: path to the stations metadata file (default data if none)
-- AEMET_TIMEZONE_RESULT: any timezone from. See zoneinfo.available_timzone(). (default: Europe/Madrid)
-- AEMET_SQLITE_URL: including sqlite cache if informed. (default data if none)
+- AEMET_STATIONS_METADATA_JSON: Path to json file with station metadata. Default if not informed.
+- AEMET_REQUEST_TIMEOUT: Max time in seconds per request. Disabled if non-informed
+- AEMET_MAX_CONCURRENT_REQUESTS: Max number of parallel requests to aemet server. Unlimited if not informed.
+- AEMET_SQLITE_URL: Sqlite url to cache. Disabled if not informed. ":memory:" not supported.
 
 ## WIP
 
@@ -72,13 +70,13 @@ Aspects of the application I'm not totally satisfied about:
 - Include coverage tools to better control testing.
 - Include hypothesis to find edge cases, specially in aggregation functions.
 - Include testing done with data fetched from the aemet-opendata server for aggregation.
-- Include testing over sql-cache. This could be done with a mock placeholder fetcher that let's us know if the sql cache proxy is calling this special fetcher.
+- ~~Include testing over sql-cache. This could be done with a mock placeholder fetcher that let's us know if the sql cache proxy is calling this special fetcher.~~
 - Do a frontend. Maybe jinja2 + tailwindcss + vegajs is enough.
 - Improve on aggregation functions. This take a time delta argument to slice in chunks. This is not adequate for months. Use a functional approach with "chunker" function over a sorted list of objects with dates.
-- Make logging more consistent through the application.
+- ~~Make logging more consistent through the application.~~
 - ~~Create logging context and inject the user HTTP request ID and create a UUID for each outgoing request.~~
-- Include timeouts for fetching operations. This has not been a problem so far but I would be to have them under control.
-- Include 4XX responses on wrong input and potentially other controlled errors.
+- ~~Include timeouts for fetching operations. This has not been a problem so far but I would be to have them under control.~~
+- ~~Include 4XX responses on wrong input and potentially other controlled errors.~~
 
 ## Questions:
 

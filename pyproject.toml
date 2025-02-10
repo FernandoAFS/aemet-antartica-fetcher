@@ -25,6 +25,7 @@ pylint = "^3.3.2"
 bandit = "^1.8.0"
 mypy = "^1.13.0"
 pytest-asyncio = "^0.25.0"
+vulture = "^2.14"
 
 
 [tool.poetry.group.sci.dependencies]
