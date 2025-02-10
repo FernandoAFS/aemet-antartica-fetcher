@@ -37,13 +37,27 @@ class SemaphoreDataFetcher[T]:
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[T]:
+        logger.debug(
+            "Concurrent control request",
+            date_0=date_0,
+            date_f=date_f,
+            station_id=station_id,
+        )
 
         if self.semaphore.locked():
             logger.debug("Locked semaphore. Request must wait")
 
-
         async with self.semaphore:
-            return await self.timeseries(date_0, date_f, station_id)
+            logger.debug("Taking semaphore")
+            res = await self.fetcher.timeseries(date_0, date_f, station_id)
+            logger.debug("Releasing semaphore")
+
+        logger.debug("Finished semaphore controlled request")
+
+        if self.semaphore.locked():
+            logger.debug("Locked semaphore. Request must wait")
+
+        return res
 
 
 def semaphore_data_fetcher_factory(

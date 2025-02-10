@@ -16,6 +16,7 @@ from .exceptions import (
 
 logger = structlog.getLogger(__name__)
 
+
 @dataclass(frozen=True, kw_only=True)
 class AemetFastapiErrorsWrapper[T]:
     "Wrap fetcher methods with fast-api http exceptions"
@@ -42,43 +43,43 @@ class AemetFastapiErrorsWrapper[T]:
         """
         Request station data to external API.
         """
+
+        logger.debug(
+            "Request on errors wrapper",
+            date_0=date_0,
+            date_f=date_f,
+            station_id=station_id,
+        )
+
+        def process_exception(e: Exception, desc: str):
+            logger.warn(e, args=list(map(str, e.args)))
+            return HTTPException(
+                status_code=400,
+                detail=desc,
+            )
+
         try:
             ts = await self.data_fetch.timeseries(date_0, date_f, station_id)
         except StationIdValueError as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="Station Id deemed invalid by data provider",
+            raise process_exception(
+                e, "Station Id deemed invalid by data provider"
             ) from e
         except IniDateValueError as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="Inital data deemed invalid by value provider",
+            raise process_exception(
+                e, "Inital data deemed invalid by value provider"
             ) from e
         except EndDateValueError as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="End data deemed invalid by value provider",
+            raise process_exception(
+                e, "End data deemed invalid by value provider"
             ) from e
         except DateRangeValueError as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="Date range deemed invalid by value provider",
+            raise process_exception(
+                e, "End data deemed invalid by value provider"
             ) from e
         except AemetRequestError as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="Error on aemet server",
-            ) from e
+            raise process_exception(e, "Error on aemet server") from e
         except Exception as e:
-            logger.warn(e)
-            raise HTTPException(
-                status_code=400,
-                detail="Unexpected error while fetching data from external source",
+            raise process_exception(
+                e, "Unexpected error while fetching data from external source"
             ) from e
-
         return ts

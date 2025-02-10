@@ -73,6 +73,7 @@ async def httpx_client_middleware(request: Request, call_next):
         with async_httpx_client_ctx(client):
             return await call_next(request)
 
+
 @app.middleware("http")
 async def db_context(request: Request, call_next):
     sqlite_uri = environ.get("AEMET_SQLITE_URL")
@@ -85,8 +86,7 @@ async def db_context(request: Request, call_next):
     logger.debug("Starting sqlite context")
     async with aiosqlite.connect(sqlite_uri) as conn:
         db_proxy = FetchPointDbProxy(db_connection=conn)
-        async with db_proxy.table_context():
-            with async_db_context_var_ctx(db_proxy):
-                return await call_next(request)
-
-
+        # async with db_proxy.table_context():
+        await db_proxy.create_table()
+        with async_db_context_var_ctx(db_proxy):
+            return await call_next(request)

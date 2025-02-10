@@ -33,9 +33,10 @@ class FetchValidatorProxy:
         self, date_0: datetime, date_f: datetime, station_id: str
     ) -> Sequence[WeatherDataPoint]:
         "Validate model and enforce timezone"
+        raw_res = await self.fetcher.timeseries(date_0, date_f, station_id)
+
         logger.debug(
             "Validating model", date_0=date_0, date_f=date_f, station_id=station_id
         )
-        raw_res = await self.fetcher.timeseries(date_0, date_f, station_id)
         points = WeatherDataPointSeries.model_validate({"points": raw_res})
         return change_series_timezone(UTC, points).points

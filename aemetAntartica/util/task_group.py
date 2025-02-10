@@ -11,8 +11,4 @@ async def parallel_task[T](*coros: Coroutine[None, None, T]) -> Sequence[T]:
             task = tg.create_task(t)
             tasks.append(task)
 
-    results: list[T] = []
-    for t in tasks:
-        results.append(await t)
-
-    return results
+    return [task.result() for task in tasks]

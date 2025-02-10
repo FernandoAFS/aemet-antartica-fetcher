@@ -15,7 +15,7 @@ from aemetAntartica.fetcher.sql_cache_proxy import (
     SqliteCacheFetcherProxy,
     find_cache_gaps,
 )
-from aemetAntartica.model.fetch import WeatherDataPoint
+from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
 from aemetAntartica.util.itertools import sliding_window
 
 SQLITE_URI = "sqlite:///"
@@ -136,7 +136,9 @@ async def test_sql_cache_overlap(
                     "vel": random.randint(0, 1000),
                 }
 
-        return list(gen_resp_items())
+        return WeatherDataPointSeries.model_validate(
+            {"points": list(gen_resp_items())}
+        ).points
 
     mock_fetcher_method = Mock(side_effect=mock_fetcher_side_effect)
     mock_fetcher_object = Mock()

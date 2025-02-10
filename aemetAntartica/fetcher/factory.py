@@ -8,6 +8,7 @@ from typing import cast
 
 import structlog
 
+from aemetAntartica.fetcher.request_divider import MonthlyTimeRequestDivider
 from aemetAntartica.fetcher.fetch_validation import FetchValidatorProxy
 from aemetAntartica.fetcher.raw_fetcher import AemetWeatherDataFetcher
 from aemetAntartica.fetcher.sql_cache_proxy import SqliteCacheFetcherProxy
@@ -54,12 +55,14 @@ async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
     else:
         station_metadata = named_station_metadata
 
+    # RAW FETCHER
     fetcher: WeatherDataFetcher[WeatherPoint]
     fetcher = AemetWeatherDataFetcher(
         stations_metadata=station_metadata,
         api_key=api_key,
     )
 
+    # TIMEOUT WRAPPER
     if request_timeout is not None:
         logger.debug("Including timeout check", request_timeout=request_timeout)
         fetcher = FetcherTimeoutProxy(
@@ -69,6 +72,7 @@ async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
     else:
         logger.debug("Omitting creation of timeout proxy")
 
+    # MAX CONCURRENT WRAPPER
     if max_concurrent_requests is not None:
         logger.debug(
             "Including max concurrent requests proxy",
@@ -81,10 +85,15 @@ async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
     else:
         logger.debug("Ommiting parallelization control")
 
+    # REQUEST SLICER
+    fetcher = MonthlyTimeRequestDivider(fetcher=fetcher)
+
+    # VALIDATION WRAPPER
     model_fetcher = cast(
         WeatherDataFetcher[WeatherDataPoint], FetchValidatorProxy(fetcher=fetcher)
     )
 
+    # SQLITE CACHE
     if sqlite_uri is not None:
         logger.debug(
             "Including sql cache",
@@ -94,13 +103,16 @@ async def gen_aemet_fetcher_env_var() -> WeatherDataFetcher[WeatherPoint]:
     else:
         logger.debug("Ommiting sql cache control")
 
-    return AemetFastapiErrorsWrapper(data_fetch=model_fetcher) # type: ignore
+    # ERROR MANAGEMENT
+    return AemetFastapiErrorsWrapper(data_fetch=model_fetcher)  # type: ignore
 
 
 __fetcher = None
 
 
 async def cached_gen_aemet_fetcher_env_var():
+    return await gen_aemet_fetcher_env_var()
+
     global __fetcher
     if __fetcher is None:
         __fetcher = await gen_aemet_fetcher_env_var()

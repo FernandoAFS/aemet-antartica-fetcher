@@ -135,7 +135,12 @@ class AemetWeatherDataFetcher:
             station_metadata["station_id"],
         )
 
-        logger.debug("Starting ticket request", date_0=date_0, date_f=date_f, station_id=station_id)
+        logger.debug(
+            "Starting ticket request",
+            date_0=date_0,
+            date_f=date_f,
+            station_id=station_id,
+        )
         ticketReq = await client.get(ticket_uri, headers=headers)
 
         if ticketReq.status_code != httpx.codes.OK:
@@ -155,13 +160,17 @@ class AemetWeatherDataFetcher:
 
         data_uri = ticket_json["datos"]
 
-        logger.debug("Starting data request", date_0=date_0, date_f=date_f, station_id=station_id)
+        logger.debug(
+            "Starting data request", date_0=date_0, date_f=date_f, station_id=station_id
+        )
         dataReq = await client.get(data_uri, headers=headers)
         if dataReq.status_code != httpx.codes.OK:
             raise AemetRequestError(
                 "Aemet data request non OK response", data_uri, dataReq
             )
 
-        logger.debug("Data recieved", date_0=date_0, date_f=date_f, station_id=station_id)
+        logger.debug(
+            "Data recieved", date_0=date_0, date_f=date_f, station_id=station_id
+        )
 
         return dataReq.json()

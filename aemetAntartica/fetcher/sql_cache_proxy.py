@@ -73,29 +73,43 @@ class SqliteCacheFetcherProxy:
         Fetch data from sql. Check for gaps. Fetch those gaps in the network
         and finally insert them back to sql.
         """
-        logger.debug("Started sql execution")
+        logger.debug(
+            "Request on sql proxy",
+            date_0=date_0,
+            date_f=date_f,
+            station_id=station_id,
+        )
 
         db_proxy = db_context_var.get()
 
         logger.debug("Started sql execution")
 
         fetched_results = await db_proxy.fetch_between(date_0, date_f, station_id)
-        logger.debug("Fetched from sql db", n_points = len(fetched_results))
+        logger.debug("Fetched from sql db", n_points=len(fetched_results))
 
         fetched_dates = list(map(attrgetter("fhora"), fetched_results))
         gaps_markerks = find_cache_gaps(date_0, date_f, fetched_dates, self.date_offset)
+        gaps = list(sliding_window(gaps_markerks, 2))
 
-        logger.debug("Fetching cache misses")
-        tasks = [
-            self.fetcher.timeseries(gap0, gapf, station_id)
-            for gap0, gapf in sliding_window(gaps_markerks, 2)
-        ]
+        logger.debug("Fetching cache misses", gaps=gaps)
+
+        async def fetch_timeseries(
+            d0_: datetime, df_: datetime
+        ) -> Sequence[WeatherDataPoint]:
+            logger.debug("Fetching cache gap", date_0=d0_, date_f=df_)
+            ts = await self.fetcher.timeseries(d0_, df_, station_id)
+            logger.debug("Finished fetching cache gap", date_0=d0_, date_f=df_)
+            return ts
+
+        tasks = [fetch_timeseries(gap0, gapf) for gap0, gapf in gaps]
 
         aemet_results = await parallel_task(*tasks)
         aemet_points = [point for result in aemet_results for point in result]
 
-        logger.debug("Fetched from aemet", n_points = len(aemet_points))
+        logger.debug("Finished fetching from external", n_points=len(aemet_points))
+
         await db_proxy.insert_points(aemet_points, station_id)
+        logger.debug("Finished inserting points in db", n_points=len(aemet_points))
 
         all_points = [*fetched_results, *aemet_points]
         return sorted(all_points, key=attrgetter("fhora"))
