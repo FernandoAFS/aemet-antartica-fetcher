@@ -2,7 +2,7 @@
 SQL cache logic
 """
 
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -18,6 +18,7 @@ from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
 from aemetAntartica.model.tz_fetch import change_series_timezone
 from aemetAntartica.util.bisect import remove_gap
 from aemetAntartica.util.task_group import parallel_task
+
 logger = structlog.get_logger(__name__)
 
 # SQL STATEMENTS FUNCTIONS AND DECLARATIONS
@@ -243,7 +244,7 @@ async def sqlite_cache_fetcher_proxy_factory(
     return SqliteCacheFetcherProxy(fetcher=fetcher, sqlite_uri=sqlite_uri)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class SqliteCacheFetcherProxySet:
     """
     Proxy fetcher that captures requests. Answers with sqlite data if possible and delegates on fetcher for true data-source.
@@ -311,14 +312,23 @@ class SqliteCacheFetcherProxySet:
             """Since sql results are sequential iteratively check that every
             gap is dt_offset. Return gaps if found"""
 
-            dates: map[datetime] = map(
-                attrgetter("fhora"), sql_res_series_tz.points
+            dates: list[datetime] = list(
+                map(attrgetter("fhora"), sql_res_series_tz.points)
             )
-            d0 = next(dates)
+
+            # DO BETTER. MUST START
+            if len(dates) <= 0:
+                yield (date_0, date_f)
+                return
+
+            d0 = date_0
             for df in dates:
                 if df - d0 > self.date_offset:
                     yield (d0, df)
                 d0 = df
+
+            if dates[-1] != date_f:
+                yield (dates[-1], date_f)
 
         missing_gaps = list(gen_cache_misses())
         if len(missing_gaps) > 0:
@@ -353,8 +363,7 @@ class SqliteCacheFetcherProxySet:
         sql_points: Sequence[WeatherPoint] = sql_res_series_tz.model_dump()["points"]
 
         # SORT RESULTS BY TIME.
-        return sorted([*fetched_points, *sql_points], key=attrgetter("fhora"))
-
+        return sorted([*fetched_points, *sql_points], key=itemgetter("fhora"))
 
 
 async def sqlite_set_cache_fetcher_proxy_factory(

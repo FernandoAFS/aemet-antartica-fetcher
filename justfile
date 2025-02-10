@@ -19,3 +19,11 @@ otel-run:
         --service_name aemet-antartica \
         --exporter_otlp_endpoint 127.0.0.1:4317 \
         fastapi run aemetAntartica/app/app.py
+
+integration-test:
+    poetry run\
+    pytest -s --asyncio-mode=auto test/aemetAntartica/integration
+
+unit-test:
+    poetry run \
+    pytest -sv --asyncio-mode=auto test/aemetAntartica/unitary

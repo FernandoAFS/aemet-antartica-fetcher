@@ -152,11 +152,12 @@ class AemetWeatherDataFetcher:
                 ticket_json,
             )
 
-
         data_uri = ticket_json["datos"]
 
         dataReq = await client.get(data_uri, headers=headers)
         if dataReq.status_code != httpx.codes.OK:
-            raise AemetRequestError("Aemet data request non OK response", data_uri, dataReq)
+            raise AemetRequestError(
+                "Aemet data request non OK response", data_uri, dataReq
+            )
 
         return dataReq.json()
