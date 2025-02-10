@@ -12,18 +12,18 @@ from datetime import datetime
 import structlog
 
 
-from .annot import AemetWeatherPoint, WeatherDataFetcher
+from .annot import WeatherDataFetcher
 
 logger = structlog.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
-class SemaphoreDataFetcher:
+class SemaphoreDataFetcher[T]:
     """
     Wrap every request method under a semaphore to guarrante a max number of current requests
     """
 
-    fetcher: WeatherDataFetcher
+    fetcher: WeatherDataFetcher[T]
     semaphore: BoundedSemaphore
 
     async def stations(self) -> Sequence[str]:
@@ -36,7 +36,12 @@ class SemaphoreDataFetcher:
 
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
-    ) -> Sequence[AemetWeatherPoint]:
+    ) -> Sequence[T]:
+
+        if self.semaphore.locked():
+            logger.debug("Locked semaphore. Request must wait")
+
+
         async with self.semaphore:
             return await self.timeseries(date_0, date_f, station_id)
 

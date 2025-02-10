@@ -1,26 +1,10 @@
-from operator import attrgetter, itemgetter
-from collections.abc import Generator, Sequence
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from collections.abc import Sequence
 from math import isinf, isnan
 from string import Template
 
-import aiosqlite
-import asyncstdlib
 import structlog
 
-from aemetAntartica.fetcher.annot import WeatherDataFetcher, WeatherPoint
-from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
-from aemetAntartica.model.tz_fetch import change_series_timezone
-from aemetAntartica.util.bisect import remove_gap
-from aemetAntartica.util.task_group import parallel_task
-
-logger = structlog.get_logger(__name__)
-
-from string import Template
-
-import structlog
-
+from aemetAntartica.model.fetch import WeatherDataPoint
 
 logger = structlog.get_logger(__name__)
 

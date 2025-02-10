@@ -11,9 +11,9 @@ from datetime import datetime
 
 import structlog
 
-
-from .annot import AemetWeatherPoint, WeatherDataFetcher
 from aemetAntartica.util.task_group import parallel_task
+
+from .annot import WeatherDataFetcher
 
 logger = structlog.getLogger(__name__)
 
@@ -42,12 +42,12 @@ def monthly_divider(d0: datetime, df: datetime) -> Generator[datetime]:
 
 
 @dataclass(frozen=True, kw_only=True)
-class MonthlyTimeRequestDivider:
+class MonthlyTimeRequestDivider[T]:
     """
     Wrap every request method under a semaphore to guarrante a max number of current requests
     """
 
-    fetcher: WeatherDataFetcher[AemetWeatherPoint]
+    fetcher: WeatherDataFetcher[T]
 
     async def stations(self) -> Sequence[str]:
         return await self.fetcher.stations()
@@ -57,7 +57,7 @@ class MonthlyTimeRequestDivider:
 
     async def timeseries(
         self, date_0: datetime, date_f: datetime, station_id: str
-    ) -> Sequence[AemetWeatherPoint]:
+    ) -> Sequence[T]:
         dates = list(monthly_divider(date_0, date_f))
 
         tasks = [

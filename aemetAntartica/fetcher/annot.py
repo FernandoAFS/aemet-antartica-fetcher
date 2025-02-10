@@ -18,7 +18,7 @@ class StationMetaData(TypedDict):
 
 
 # TODO: COMBINE GENERICS AND EXTENDS.
-class WeatherDataFetcher[T: WeatherPoint](Protocol):
+class WeatherDataFetcher[T](Protocol):
     """
     Return data from external weather API
     """

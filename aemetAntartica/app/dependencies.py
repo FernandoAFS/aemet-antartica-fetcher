@@ -2,7 +2,6 @@
 Dependencies factories for fastapi
 """
 
-import operator
 from typing import Annotated, Callable, TypeAlias
 
 from fastapi import Depends, HTTPException
@@ -12,7 +11,6 @@ from aemetAntartica.fetcher.annot import WeatherDataFetcher, WeatherPoint
 from aemetAntartica.fetcher.factory import cached_gen_aemet_fetcher_env_var
 from aemetAntartica.model.factory import change_series_timezone_os
 from aemetAntartica.model.fetch import WeatherDataPoint
-from aemetAntartica.util.bisect import find_between
 
 from .enum import AggTimeOpts, AggTypeOpts
 from .params import (
@@ -28,7 +26,7 @@ from .response import (
 )
 
 AemetDataFetcher: TypeAlias = Annotated[
-    WeatherDataFetcher[WeatherPoint], Depends(cached_gen_aemet_fetcher_env_var)
+    WeatherDataFetcher[WeatherDataPoint], Depends(cached_gen_aemet_fetcher_env_var)
 ]
 
 TimezonePointConvert: TypeAlias = Annotated[
@@ -81,25 +79,12 @@ async def aggregate_aemet_data(
 
     ts = await data_fetch.timeseries(date_0, date_f, station_id)
 
-    models_ts = list(map(WeatherDataPoint.model_validate, ts))
-    filtered_models_ts = find_between(
-        models_ts, date_0, date_f, key=operator.attrgetter("fhora")
-    )
-
     try:
-        agg_data = agg_f(filtered_models_ts, agg_td)
+        agg_data = agg_f(ts, agg_td)
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail="Unexpected error on aggregation",
-        ) from e
-
-    try:
-        adapted_page = list(map(tz_convert, agg_data))
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail="Unexpected error on time conversion",
         ) from e
 
     try:

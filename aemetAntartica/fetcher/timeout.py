@@ -8,7 +8,7 @@ from .exceptions import AemetRequestError
 
 
 @dataclass(frozen=True, kw_only=True)
-class AemetFastapiErrorsWrapper[T: WeatherPoint]:
+class FetcherTimeoutProxy[T: WeatherPoint]:
     "Wrap every method in a timeout"
 
     fetcher: WeatherDataFetcher[T]

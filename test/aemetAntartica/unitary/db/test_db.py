@@ -2,9 +2,9 @@
 Test DB operations
 """
 
-from datetime import datetime, timedelta
-from operator import attrgetter
 import random
+from datetime import datetime, timedelta
+
 import aiosqlite
 import pytest
 

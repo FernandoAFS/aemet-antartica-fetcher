@@ -2,8 +2,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from fastapi import HTTPException
+import structlog
 
-from .annot import WeatherPoint, WeatherDataFetcher
+from .annot import WeatherDataFetcher
 from .exceptions import (
     AemetRequestError,
     DateRangeValueError,
@@ -13,8 +14,10 @@ from .exceptions import (
 )
 
 
+logger = structlog.getLogger(__name__)
+
 @dataclass(frozen=True, kw_only=True)
-class AemetFastapiErrorsWrapper[T: WeatherPoint]:
+class AemetFastapiErrorsWrapper[T]:
     "Wrap fetcher methods with fast-api http exceptions"
 
     data_fetch: WeatherDataFetcher[T]
@@ -42,31 +45,37 @@ class AemetFastapiErrorsWrapper[T: WeatherPoint]:
         try:
             ts = await self.data_fetch.timeseries(date_0, date_f, station_id)
         except StationIdValueError as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="Station Id deemed invalid by data provider",
             ) from e
         except IniDateValueError as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="Inital data deemed invalid by value provider",
             ) from e
         except EndDateValueError as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="End data deemed invalid by value provider",
             ) from e
         except DateRangeValueError as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="Date range deemed invalid by value provider",
             ) from e
         except AemetRequestError as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="Error on aemet server",
             ) from e
         except Exception as e:
+            logger.warn(e)
             raise HTTPException(
                 status_code=400,
                 detail="Unexpected error while fetching data from external source",

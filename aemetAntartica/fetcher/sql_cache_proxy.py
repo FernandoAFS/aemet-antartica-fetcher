@@ -6,13 +6,13 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from operator import attrgetter
-from aemetAntartica.db.context import db_context_var
-from aemetAntartica.util.itertools import sliding_window
 
 import structlog
 
-from aemetAntartica.fetcher.annot import WeatherDataFetcher, WeatherPoint
-from aemetAntartica.model.fetch import WeatherDataPoint, WeatherDataPointSeries
+from aemetAntartica.db.context import db_context_var
+from aemetAntartica.fetcher.annot import WeatherDataFetcher
+from aemetAntartica.model.fetch import WeatherDataPoint
+from aemetAntartica.util.itertools import sliding_window
 from aemetAntartica.util.task_group import parallel_task
 
 logger = structlog.get_logger(__name__)
@@ -55,7 +55,7 @@ class SqliteCacheFetcherProxy:
     This class expects to have a db context available.
     """
 
-    fetcher: WeatherDataFetcher[WeatherPoint]
+    fetcher: WeatherDataFetcher[WeatherDataPoint]
     date_offset: timedelta = timedelta(minutes=10)
 
     async def stations(self) -> Sequence[str]:
@@ -73,25 +73,28 @@ class SqliteCacheFetcherProxy:
         Fetch data from sql. Check for gaps. Fetch those gaps in the network
         and finally insert them back to sql.
         """
+        logger.debug("Started sql execution")
+
         db_proxy = db_context_var.get()
 
+        logger.debug("Started sql execution")
+
         fetched_results = await db_proxy.fetch_between(date_0, date_f, station_id)
+        logger.debug("Fetched from sql db", n_points = len(fetched_results))
 
         fetched_dates = list(map(attrgetter("fhora"), fetched_results))
         gaps_markerks = find_cache_gaps(date_0, date_f, fetched_dates, self.date_offset)
 
+        logger.debug("Fetching cache misses")
         tasks = [
             self.fetcher.timeseries(gap0, gapf, station_id)
             for gap0, gapf in sliding_window(gaps_markerks, 2)
         ]
 
         aemet_results = await parallel_task(*tasks)
-        aemet_fetched_points = [point for result in aemet_results for point in result]
+        aemet_points = [point for result in aemet_results for point in result]
 
-        aemet_points = WeatherDataPointSeries.model_validate(
-            {"points": aemet_fetched_points}
-        ).points
-
+        logger.debug("Fetched from aemet", n_points = len(aemet_points))
         await db_proxy.insert_points(aemet_points, station_id)
 
         all_points = [*fetched_results, *aemet_points]
